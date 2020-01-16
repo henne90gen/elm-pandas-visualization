@@ -44,6 +44,8 @@ type alias Field =
     }
 
 
+{-| Creates a DataFrame from the supplied data
+-}
 create : List a -> DataFrame a
 create data =
     { data = data, schema = Nothing }
