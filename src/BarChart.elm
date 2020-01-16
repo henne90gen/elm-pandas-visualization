@@ -1,4 +1,13 @@
-module BarChart exposing (barChart, singleBarChart)
+module BarChart exposing (singleBarChart, barChart)
+
+{-| This module takes care of drawing bar charts
+
+
+# Create bar charts
+
+@docs singleBarChart, barChart
+
+-}
 
 import Axis
 import Color
@@ -40,11 +49,15 @@ type alias ExtendedDrawingData a =
     }
 
 
+{-| Creates a simple bar chart
+-}
 singleBarChart : ( Float, Float ) -> XValueMapper a -> YValueMapper a -> DataFrame a -> Svg msg
 singleBarChart dim xValueMapper yValueMapper df =
     barChart { dimensions = dim, xValueMapper = xValueMapper, yValueMappers = [ yValueMapper ], dataFrame = df }
 
 
+{-| Creates a bar chart with multiple bars per x-value
+-}
 barChart : DrawingData a -> Svg msg
 barChart drawingData =
     let

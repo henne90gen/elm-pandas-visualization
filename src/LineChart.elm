@@ -1,4 +1,21 @@
-module LineChart exposing (XValueMapper(..), lineChart, singleLineChart)
+module LineChart exposing
+    ( singleLineChart, lineChart
+    , XValueMapper(..)
+    )
+
+{-| This module takes care of drawing line charts
+
+
+# Create line charts
+
+@docs singleLineChart, lineChart
+
+
+# Mappers
+
+@docs XValueMapper
+
+-}
 
 import Axis
 import Color
@@ -15,6 +32,8 @@ import TypedSvg.Core exposing (Svg)
 import TypedSvg.Types exposing (AnchorAlignment(..), Fill(..), Length(..), Transform(..))
 
 
+{-| Maps a row either to a time or to a value
+-}
 type XValueMapper a
     = TimeMapper (a -> Posix)
     | ValueMapper (a -> Float)
@@ -29,11 +48,15 @@ type DataScale a
     | ValueScale ( ContinuousScale Float, a -> Float )
 
 
+{-| Creates a line chart with a single line
+-}
 singleLineChart : ( Float, Float ) -> XValueMapper a -> YValueMapper a -> DataFrame a -> Svg msg
 singleLineChart dim xValueMapper yValueMapper df =
     lineChart dim xValueMapper [ yValueMapper ] df
 
 
+{-| Creates a line chart with multiple lines
+-}
 lineChart : ( Float, Float ) -> XValueMapper a -> List (YValueMapper a) -> DataFrame a -> Svg msg
 lineChart ( w, h ) xValueMapper yValueMappers df =
     let
