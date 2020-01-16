@@ -1,12 +1,12 @@
 module DataFrame exposing
-    ( DataFrame, dataFrameDecoder
+    ( DataFrame, create, dataFrameDecoder
     , map, filter, length
     , paddingX, paddingY
     )
 
 {-| Elm representation of a pandas DataFrame.
 
-@docs DataFrame, dataFrameDecoder
+@docs DataFrame, create, dataFrameDecoder
 
 
 # Helper Methods
@@ -26,13 +26,13 @@ import Json.Decode exposing (Decoder, field, list, map2, map3, string)
 {-| The DataFrame type containing the schema of the data and the data itself
 -}
 type alias DataFrame a =
-    { schema : Schema
+    { schema : Maybe Schema
     , data : List a
     }
 
 
 type alias Schema =
-    { field : List Field
+    { fields : List Field
     , pandasVersion : String
     , primaryKey : List String
     }
@@ -44,6 +44,11 @@ type alias Field =
     }
 
 
+create : List a -> DataFrame a
+create data =
+    { data = data, schema = Nothing }
+
+
 {-| Decodes a JSON serialized DataFrame
 -}
 dataFrameDecoder : Decoder a -> Decoder (DataFrame a)
@@ -51,9 +56,14 @@ dataFrameDecoder dataDecoder =
     map2 DataFrame (field "schema" schemaDecoder) (field "data" (list dataDecoder))
 
 
-schemaDecoder : Decoder Schema
+schemaDecoder : Decoder (Maybe Schema)
 schemaDecoder =
-    map3 Schema (field "fields" fieldsDecoder) (field "pandas_version" string) (field "primaryKey" (list string))
+    Json.Decode.map Just
+        (map3 Schema
+            (field "fields" fieldsDecoder)
+            (field "pandas_version" string)
+            (field "primaryKey" (list string))
+        )
 
 
 fieldsDecoder : Decoder (List Field)
