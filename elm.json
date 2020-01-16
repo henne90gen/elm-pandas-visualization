@@ -1,6 +1,6 @@
 {
     "type": "package",
-    "name": "henne90gen/pandas-visualization",
+    "name": "henne90gen/elm-pandas-visualization",
     "summary": "Allows to create graphs from a pandas DataFrame.",
     "license": "BSD-3-Clause",
     "version": "1.0.0",
