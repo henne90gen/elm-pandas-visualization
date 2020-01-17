@@ -119,8 +119,22 @@ createXScale w xValueMapper df =
 
 createValueScale : Float -> (a -> Float) -> DataFrame a -> ContinuousScale Float
 createValueScale w mapper df =
-    -- TODO implement this
-    Scale.linear ( 0, 0 ) ( 100, 100 )
+    let
+        data =
+            df.data
+                |> List.map mapper
+
+        minimum =
+            data
+                |> List.minimum
+                |> Maybe.withDefault 0
+
+        maximum =
+            data
+                |> List.maximum
+                |> Maybe.withDefault 0
+    in
+    Scale.linear ( 0, w ) ( minimum, maximum )
 
 
 createTimeScale : Float -> (a -> Posix) -> DataFrame a -> ContinuousScale Posix
