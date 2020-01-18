@@ -11,8 +11,9 @@ module BarChart exposing (singleBarChart, barChart)
 
 import Axis
 import Color
-import DataFrame exposing (DataFrame, paddingX, paddingY)
+import DataFrame exposing (DataFrame, YValueMapper)
 import Html exposing (text)
+import InternalHelper exposing (indexedColor, paddingX, paddingY)
 import List.Extra
 import Round
 import Scale exposing (BandScale, ContinuousScale, defaultBandConfig)
@@ -25,10 +26,6 @@ import TypedSvg.Types exposing (AnchorAlignment(..), Fill(..), Length(..), Trans
 
 type alias XValueMapper a =
     a -> String
-
-
-type alias YValueMapper a =
-    a -> Float
 
 
 type alias DrawingData a =
@@ -86,11 +83,7 @@ barChart drawingData =
             }
     in
     svg [ viewBox 0 0 w h ]
-        [ style [] [ text """
-        .blue-bar { fill: rgb(31, 119, 180); }
-        .orange-bar { fill: rgb(255, 127, 14); }
-        """ ]
-        , g [ transform [ Translate (paddingX - 1) (h - paddingY) ] ] [ xAxis xScale drawingData.xValueMapper ]
+        [ g [ transform [ Translate (paddingX - 1) (h - paddingY) ] ] [ xAxis xScale drawingData.xValueMapper ]
         , g [ transform [ Translate (paddingX - 1) paddingY ] ] [ yAxis yScale ]
         , g [ transform [ Translate paddingX paddingY ] ] <|
             List.indexedMap (series extendedDD) drawingData.yValueMappers
@@ -121,12 +114,13 @@ bar extendedDD barWidth index yValueMapper elem =
         yValue =
             yValueMapper elem
     in
-    g [ class [ barClass index ] ]
+    g [ class [] ]
         [ rect
             [ x <| xValue + barWidth * toFloat index
             , y <| Scale.convert extendedDD.yScale yValue
             , width <| barWidth
             , height <| h - Scale.convert extendedDD.yScale yValue - 2 * paddingY
+            , fill (Fill <| indexedColor index)
             ]
             []
         , textOnBar extendedDD barWidth index yValue elem
@@ -180,11 +174,6 @@ getTextYPos h yScale value =
 
     else
         ( y_ - 5, AnchorEnd )
-
-
-barClass : Int -> String
-barClass index =
-    Maybe.withDefault "blue-bar" (List.Extra.getAt index [ "blue-bar", "orange-bar" ])
 
 
 getTotalMinMax : List (YValueMapper a) -> DataFrame a -> ( Float, Float )

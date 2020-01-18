@@ -1,7 +1,7 @@
 module DataFrame exposing
     ( DataFrame, create, dataFrameDecoder
     , map, filter, length
-    , paddingX, paddingY
+    , XValueMapper(..), YValueMapper
     )
 
 {-| Elm representation of a pandas DataFrame.
@@ -21,6 +21,7 @@ module DataFrame exposing
 -}
 
 import Json.Decode exposing (Decoder, field, list, map2, map3, string)
+import Time exposing (Posix)
 
 
 {-| The DataFrame type containing the schema of the data and the data itself
@@ -42,6 +43,15 @@ type alias Field =
     { name : String
     , type_ : String
     }
+
+
+type XValueMapper a
+    = TimeMapper (a -> Posix)
+    | ValueMapper (a -> Float)
+
+
+type alias YValueMapper a =
+    a -> Float
 
 
 {-| Creates a DataFrame from the supplied data
@@ -71,20 +81,6 @@ schemaDecoder =
 fieldsDecoder : Decoder (List Field)
 fieldsDecoder =
     list (map2 Field (field "name" string) (field "type" string))
-
-
-{-| Default horizontal padding
--}
-paddingX : Float
-paddingX =
-    30
-
-
-{-| Default vertical padding
--}
-paddingY : Float
-paddingY =
-    20
 
 
 {-| Maps a function over each row of a DataFrame
