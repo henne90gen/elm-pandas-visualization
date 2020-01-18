@@ -1,9 +1,8 @@
-module LineChartExample exposing (main)
+module ScatterChartExample exposing (main)
 
 import Browser
 import DataFrame exposing (DataFrame)
-import LineChart
-import Shape
+import ScatterChart
 
 
 type alias Model =
@@ -64,10 +63,9 @@ dataPoint x y =
 
 view : Model -> Browser.Document Msg
 view model =
-    { title = "LineChart Example"
+    { title = "ScatterChart Example"
     , body =
-        [ LineChart.singleLineChart ( 600, 300 )
-            Shape.linearCurve
+        [ ScatterChart.singleScatterChart ( 600, 300 )
             (DataFrame.ValueMapper (\e -> e.x))
             (\e -> e.y)
             model
