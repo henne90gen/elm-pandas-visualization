@@ -7,11 +7,6 @@ module LineChart exposing (singleLineChart, lineChart)
 
 @docs singleLineChart, lineChart
 
-
-# Mappers
-
-@docs XValueMapper, valueMapper, timeMapper
-
 -}
 
 import Color

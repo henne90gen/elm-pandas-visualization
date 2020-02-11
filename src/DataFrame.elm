@@ -6,17 +6,12 @@ module DataFrame exposing
 
 {-| Elm representation of a pandas DataFrame.
 
-@docs DataFrame, create, dataFrameDecoder
+@docs DataFrame, create, dataFrameDecoder, XValueMapper, YValueMapper
 
 
 # Helper Methods
 
 @docs map, filter, length
-
-
-# Default paddings
-
-@docs paddingX, paddingY
 
 -}
 
@@ -44,12 +39,14 @@ type alias Field =
     , type_ : String
     }
 
-
+{-| Decides how the values are mapped to the x-axis
+-}
 type XValueMapper a
     = TimeMapper (a -> Posix)
     | ValueMapper (a -> Float)
 
-
+{-| Decides how the values are mapped to the y-axis
+-}
 type alias YValueMapper a =
     a -> Float
 

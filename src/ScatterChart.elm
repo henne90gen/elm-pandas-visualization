@@ -1,4 +1,10 @@
-module ScatterChart exposing (scatterChart, singleScatterChart)
+module ScatterChart exposing (singleScatterChart, scatterChart)
+
+{-| This module takes care of drawing scatter charts
+
+@docs singleScatterChart, scatterChart
+
+-}
 
 import Color
 import DataFrame exposing (DataFrame, XValueMapper, YValueMapper)
@@ -10,12 +16,15 @@ import TypedSvg.Attributes.InPx
 import TypedSvg.Core exposing (Svg)
 import TypedSvg.Types exposing (AnchorAlignment(..), Fill(..), Length(..), Transform(..))
 
-
+{-| Creats a scatter chart from a single series
+-}
 singleScatterChart : ( Float, Float ) -> XValueMapper a -> YValueMapper a -> DataFrame a -> Svg msg
 singleScatterChart dim xValueMapper yValueMapper df =
     scatterChart dim xValueMapper [ yValueMapper ] df
 
 
+{-| Creats a scatter chart from multiple series
+-}
 scatterChart : ( Float, Float ) -> XValueMapper a -> List (YValueMapper a) -> DataFrame a -> Svg msg
 scatterChart ( w, h ) xValueMapper yValueMappers df =
     let
