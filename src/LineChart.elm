@@ -11,7 +11,7 @@ module LineChart exposing (lineChart)
 
 import Color
 import DataFrame exposing (DataFrame, XValueMapper, YValueMapper)
-import InternalHelper exposing (DataScale(..), createXScale, createYScale, indexedColor, paddingX, paddingY, xAxis, yAxis)
+import InternalHelper exposing (DataScale(..), createXScale, createYScaleMinMax, indexedColor, paddingX, paddingY, xAxis, yAxis)
 import Path
 import Scale exposing (ContinuousScale)
 import Shape
@@ -43,6 +43,8 @@ lineChart :
     , dataFrame : DataFrame a
     , xAxisLabel : Maybe String
     , yAxisLabel : Maybe String
+    , yMin : Maybe Float
+    , yMax : Maybe Float
     }
     -> Svg msg
 lineChart data =
@@ -57,7 +59,7 @@ lineChart data =
             createXScale w data.xFunc data.dataFrame
 
         yScale =
-            createYScale h (List.map (\e -> e.yFunc) data.lines) data.dataFrame
+            createYScaleMinMax h data.yMin data.yMax (List.map (\e -> e.yFunc) data.lines) data.dataFrame
 
         lineCount =
             List.length data.lines

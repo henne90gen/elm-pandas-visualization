@@ -2,6 +2,7 @@ module InternalHelper exposing
     ( DataScale(..)
     , createXScale
     , createYScale
+    , createYScaleMinMax
     , indexedColor
     , paddingX
     , paddingY
@@ -94,6 +95,11 @@ createTimeScale w mapper df =
 
 createYScale : Float -> List (YValueMapper a) -> DataFrame a -> ContinuousScale Float
 createYScale h yValueMappers df =
+    createYScale h yValueMappers df
+
+
+createYScaleMinMax : Float -> Maybe Float -> Maybe Float -> List (YValueMapper a) -> DataFrame a -> ContinuousScale Float
+createYScaleMinMax h yMin yMax yValueMappers df =
     let
         data =
             df.data
@@ -101,15 +107,25 @@ createYScale h yValueMappers df =
                 |> List.foldl (\a b -> a ++ b) []
 
         minimum =
-            data
-                |> List.minimum
-                |> Maybe.withDefault 0
-                |> clampToZeroIfPositive
+            case yMin of
+                Just value ->
+                    value
+
+                Nothing ->
+                    data
+                        |> List.minimum
+                        |> Maybe.withDefault 0
+                        |> clampToZeroIfPositive
 
         maximum =
-            data
-                |> List.maximum
-                |> Maybe.withDefault 0
+            case yMax of
+                Just value ->
+                    value
+
+                Nothing ->
+                    data
+                        |> List.maximum
+                        |> Maybe.withDefault 0
     in
     Scale.linear ( h - 2 * paddingY, 0 ) ( minimum, maximum )
 

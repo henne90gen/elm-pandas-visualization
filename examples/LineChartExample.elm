@@ -89,6 +89,8 @@ view model =
             , dataFrame = model
             , xAxisLabel = Nothing
             , yAxisLabel = Nothing
+            , yMin = Just -5
+            , yMax = Just 20
             }
         ]
     }
