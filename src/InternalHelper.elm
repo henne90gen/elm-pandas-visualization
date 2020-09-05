@@ -64,8 +64,13 @@ createValueScale w mapper df =
             data
                 |> List.maximum
                 |> Maybe.withDefault 0
+
+        valuePadding =
+            (maximum - minimum) * 0.015
     in
-    Scale.linear ( 0, w - 2 * paddingX ) ( minimum, maximum )
+    Scale.linear
+        ( 0, w - 2 * paddingX )
+        ( minimum - valuePadding, maximum + valuePadding )
 
 
 createTimeScale : Float -> (a -> Posix) -> DataFrame a -> ContinuousScale Posix
@@ -76,21 +81,26 @@ createTimeScale w mapper df =
                 |> List.map mapper
                 |> List.map Time.posixToMillis
 
+        start =
+            data
+                |> List.minimum
+                |> Maybe.withDefault 0
+
+        end =
+            data
+                |> List.maximum
+                |> Maybe.withDefault 0
+
+        timePadding =
+            round (toFloat (end - start) * 0.015)
+
         startTime =
-            Time.millisToPosix
-                (data
-                    |> List.minimum
-                    |> Maybe.withDefault 0
-                )
+            Time.millisToPosix (start - timePadding)
 
         endTime =
-            Time.millisToPosix
-                (data
-                    |> List.maximum
-                    |> Maybe.withDefault 0
-                )
+            Time.millisToPosix (end + timePadding)
     in
-    Scale.time Time.utc ( 0, w ) ( startTime, endTime )
+    Scale.time Time.utc ( 0, w - 2 * paddingX ) ( startTime, endTime )
 
 
 createYScale : Float -> List (YValueMapper a) -> DataFrame a -> ContinuousScale Float

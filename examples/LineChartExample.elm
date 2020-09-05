@@ -3,8 +3,10 @@ module LineChartExample exposing (main)
 import Browser
 import Color
 import DataFrame exposing (DataFrame)
+import Html exposing (Html)
 import LineChart
 import Shape
+import Time
 
 
 type alias Model =
@@ -12,7 +14,8 @@ type alias Model =
 
 
 type alias DataPoint =
-    { x : Float
+    { x1 : Float
+    , x2 : Time.Posix
     , y1 : Float
     , y2 : Float
     }
@@ -55,42 +58,76 @@ exampleData =
     , dataPoint 3 9 8
     , dataPoint 4 11 7
     , dataPoint 5 17 10
-    , dataPoint 6 12 8
+    , dataPoint 6 10 8
     ]
 
 
-dataPoint : Float -> Float -> Float -> DataPoint
+dataPoint : Int -> Float -> Float -> DataPoint
 dataPoint x y1 y2 =
-    { x = x, y1 = y1, y2 = y2 }
+    { x1 = toFloat x, x2 = Time.millisToPosix <| x * 86400000, y1 = y1, y2 = y2 }
 
 
 view : Model -> Browser.Document Msg
 view model =
     { title = "LineChart Example"
     , body =
-        [ LineChart.lineChart
-            { dimensions = ( 600, 300 )
-            , lineType = Shape.linearCurve
-            , xFunc = DataFrame.ValueMapper (\e -> e.x)
-            , lines =
-                [ { yFunc = \e -> e.y1
-                  , label = Just "my-data-1"
-                  , color = Just (Color.rgb 1 0 1)
-                  }
-                , { yFunc = \e -> e.y2
-                  , label = Just "my-data-2"
-                  , color = Just (Color.rgb 0 1 1)
-                  }
-                , { yFunc = \e -> e.y2 - 1
-                  , label = Just "my-data-3"
-                  , color = Just (Color.rgb 1 1 0)
-                  }
-                ]
-            , dataFrame = model
-            , xAxisLabel = Nothing
-            , yAxisLabel = Nothing
-            , yMin = Just -5
-            , yMax = Just 20
-            }
+        [ valueChart model
+        , timeChart model
         ]
     }
+
+
+valueChart : Model -> Html msg
+valueChart model =
+    LineChart.lineChart
+        { dimensions = ( 600, 300 )
+        , lineType = Shape.linearCurve
+        , xFunc = DataFrame.ValueMapper (\e -> e.x1)
+        , lines =
+            [ { yFunc = \e -> e.y1 * 1000
+              , label = Just "my-data-1"
+              , color = Just (Color.rgb 1 0 1)
+              }
+            , { yFunc = \e -> e.y2 * 1000
+              , label = Just "my-data-2"
+              , color = Just (Color.rgb 0 1 1)
+              }
+            , { yFunc = \e -> (e.y2 - 1) * 1000
+              , label = Just "my-data-3"
+              , color = Just (Color.rgb 1 1 0)
+              }
+            ]
+        , dataFrame = model
+        , xAxisLabel = Nothing
+        , yAxisLabel = Nothing
+        , yMin = Just -5
+        , yMax = Nothing
+        }
+
+
+timeChart : Model -> Html msg
+timeChart model =
+    LineChart.lineChart
+        { dimensions = ( 600, 300 )
+        , lineType = Shape.linearCurve
+        , xFunc = DataFrame.TimeMapper (\e -> e.x2)
+        , lines =
+            [ { yFunc = \e -> e.y1 * 1000
+              , label = Just "my-data-1"
+              , color = Just (Color.rgb 1 0 1)
+              }
+            , { yFunc = \e -> e.y2 * 1000
+              , label = Just "my-data-2"
+              , color = Just (Color.rgb 0 1 1)
+              }
+            , { yFunc = \e -> (e.y2 - 1) * 1000
+              , label = Just "my-data-3"
+              , color = Just (Color.rgb 1 1 0)
+              }
+            ]
+        , dataFrame = model
+        , xAxisLabel = Nothing
+        , yAxisLabel = Nothing
+        , yMin = Just -5
+        , yMax = Nothing
+        }

@@ -65,9 +65,9 @@ lineChart data =
             List.length data.lines
     in
     svg [ viewBox 0 0 w h ]
-        [ g [ transform [ Translate (paddingX - 1) (h - paddingY) ] ] [ xAxis xScale ]
-        , g [ transform [ Translate (paddingX - 1) paddingY ] ] [ yAxis yScale ]
-        , g [ transform [ Translate paddingX paddingY ] ] <|
+        [ g [ transform [ Translate (paddingX * 1.5) (h - paddingY) ] ] [ xAxis xScale ]
+        , g [ transform [ Translate (paddingX * 1.5) paddingY ] ] [ yAxis yScale ]
+        , g [ transform [ Translate (paddingX * 1.5) paddingY ] ] <|
             List.indexedMap (series xScale yScale data.lineType data.dataFrame) data.lines
         , g [ transform [ Translate (w - paddingX * 4) (h - paddingY * (toFloat lineCount + 1)) ] ] <|
             List.indexedMap (drawLabel lineCount) data.lines
