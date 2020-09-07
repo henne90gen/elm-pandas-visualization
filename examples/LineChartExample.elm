@@ -4,13 +4,16 @@ import Browser
 import Color
 import DataFrame exposing (DataFrame)
 import Html exposing (Html)
-import LineChart
+import LineChart exposing (lineChart)
 import Shape
 import Time
 
 
 type alias Model =
-    DataFrame DataPoint
+    { df : DataFrame DataPoint
+    , valueChartModel : LineChart.Model
+    , timeChartModel : LineChart.Model
+    }
 
 
 type alias DataPoint =
@@ -22,7 +25,8 @@ type alias DataPoint =
 
 
 type Msg
-    = DefaultMsg
+    = ValueChartMsg LineChart.Msg
+    | TimeChartMsg LineChart.Msg
 
 
 main : Program () Model Msg
@@ -36,8 +40,21 @@ main =
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
-update _ model =
-    ( model, Cmd.none )
+update msg model =
+    case msg of
+        ValueChartMsg m ->
+            let
+                ( newModel, newCmd ) =
+                    LineChart.update m model.valueChartModel
+            in
+            ( { model | valueChartModel = newModel }, Cmd.map ValueChartMsg newCmd )
+
+        TimeChartMsg m ->
+            let
+                ( newModel, newCmd ) =
+                    LineChart.update m model.timeChartModel
+            in
+            ( { model | timeChartModel = newModel }, Cmd.map TimeChartMsg newCmd )
 
 
 subscriptions : Model -> Sub Msg
@@ -47,7 +64,12 @@ subscriptions _ =
 
 init : flags -> ( Model, Cmd Msg )
 init _ =
-    ( DataFrame.create exampleData, Cmd.none )
+    ( { df = DataFrame.create exampleData
+      , valueChartModel = LineChart.initialModel
+      , timeChartModel = LineChart.initialModel
+      }
+    , Cmd.none
+    )
 
 
 exampleData : List DataPoint
@@ -77,7 +99,7 @@ view model =
     }
 
 
-valueChart : Model -> Html msg
+valueChart : Model -> Html Msg
 valueChart model =
     LineChart.lineChart
         { dimensions = ( 600, 300 )
@@ -97,15 +119,17 @@ valueChart model =
               , color = Just (Color.rgb 1 1 0)
               }
             ]
-        , dataFrame = model
+        , dataFrame = model.df
         , xAxisLabel = Nothing
         , yAxisLabel = Nothing
         , yMin = Just -5
         , yMax = Nothing
+        , model = model.valueChartModel
+        , msgMapper = ValueChartMsg
         }
 
 
-timeChart : Model -> Html msg
+timeChart : Model -> Html Msg
 timeChart model =
     LineChart.lineChart
         { dimensions = ( 600, 300 )
@@ -125,9 +149,11 @@ timeChart model =
               , color = Just (Color.rgb 1 1 0)
               }
             ]
-        , dataFrame = model
+        , dataFrame = model.df
         , xAxisLabel = Nothing
         , yAxisLabel = Nothing
         , yMin = Just -5
         , yMax = Nothing
+        , model = model.timeChartModel
+        , msgMapper = TimeChartMsg
         }

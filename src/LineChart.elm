@@ -1,4 +1,7 @@
-module LineChart exposing (lineChart)
+module LineChart exposing
+    ( lineChart
+    , Model, Msg, initialModel, update
+    )
 
 {-| This module takes care of drawing line charts
 
@@ -12,6 +15,7 @@ module LineChart exposing (lineChart)
 import Color
 import DataFrame exposing (DataFrame, XValueMapper, YValueMapper)
 import InternalHelper exposing (DataScale(..), createXScale, createYScaleMinMax, indexedColor, paddingX, paddingY, xAxis, yAxis)
+import Json.Decode as Decode
 import Path
 import Scale exposing (ContinuousScale)
 import Shape
@@ -19,7 +23,9 @@ import SubPath
 import TypedSvg exposing (g, svg, text_)
 import TypedSvg.Attributes exposing (class, fill, stroke, strokeWidth, transform, viewBox, x, x1, x2, y, y1, y2)
 import TypedSvg.Core exposing (Svg, text)
+import TypedSvg.Events exposing (on)
 import TypedSvg.Types exposing (AnchorAlignment(..), Fill(..), Length(..), Transform(..))
+import VirtualDom
 
 
 type alias LineType =
@@ -31,6 +37,33 @@ type alias LineConfig a =
     , label : Maybe String
     , color : Maybe Color.Color
     }
+
+
+type alias Model =
+    { mousePosition : Maybe MousePosition
+    }
+
+
+type alias MousePosition =
+    { x : Int
+    , y : Int
+    }
+
+
+type Msg
+    = UpdateMousePosition MousePosition
+
+
+initialModel : Model
+initialModel =
+    { mousePosition = Nothing }
+
+
+update : Msg -> Model -> ( Model, Cmd Msg )
+update msg model =
+    case msg of
+        UpdateMousePosition pos ->
+            ( { model | mousePosition = Just pos }, Cmd.none )
 
 
 {-| Creates a line chart with multiple lines
@@ -45,6 +78,8 @@ lineChart :
     , yAxisLabel : Maybe String
     , yMin : Maybe Float
     , yMax : Maybe Float
+    , model : Model
+    , msgMapper : Msg -> msg
     }
     -> Svg msg
 lineChart data =
@@ -64,14 +99,24 @@ lineChart data =
         lineCount =
             List.length data.lines
     in
-    svg [ viewBox 0 0 w h ]
-        [ g [ transform [ Translate (paddingX * 1.5) (h - paddingY) ] ] [ xAxis xScale ]
-        , g [ transform [ Translate (paddingX * 1.5) paddingY ] ] [ yAxis yScale ]
-        , g [ transform [ Translate (paddingX * 1.5) paddingY ] ] <|
-            List.indexedMap (series xScale yScale data.lineType data.dataFrame) data.lines
-        , g [ transform [ Translate (w - paddingX * 4) (h - paddingY * (toFloat lineCount + 1)) ] ] <|
-            List.indexedMap (drawLabel lineCount) data.lines
-        ]
+    TypedSvg.Core.map data.msgMapper <|
+        svg
+            [ viewBox 0 0 w h
+            , on "mousemove" <| VirtualDom.Normal <| Decode.map UpdateMousePosition mouseMoveDecoder
+            ]
+            [ drawXAxis h xScale
+            , drawYAxis yScale
+            , drawSeries xScale yScale data.lineType data.dataFrame data.lines
+            , g [ transform [ Translate (w - paddingX * 4) (h - paddingY * (toFloat lineCount + 1)) ] ] <|
+                List.indexedMap (drawLabel lineCount) data.lines
+            , drawCursor h data.model.mousePosition
+            ]
+
+
+drawSeries : DataScale a -> ContinuousScale Float -> LineType -> DataFrame a -> List (LineConfig a) -> Svg msg
+drawSeries xScale yScale lineType df lines =
+    g [ transform [ Translate (paddingX * 1.5) paddingY ] ] <|
+        List.indexedMap (series xScale yScale lineType df) lines
 
 
 series : DataScale a -> ContinuousScale Float -> LineType -> DataFrame a -> Int -> LineConfig a -> Svg msg
@@ -79,7 +124,7 @@ series xScale yScale lineType df index lineConfig =
     g [ class [ "series" ] ]
         [ line index xScale yScale lineConfig lineType df
 
-        --, g [] <| List.map (drawCircle xScale yScale) items
+        -- , g [] <| List.map (drawCircle xScale yScale) items
         ]
 
 
@@ -90,6 +135,16 @@ line index xScale yScale lineConfig lineType df =
             getColor index lineConfig
     in
     g [] [ drawCurve xScale yScale lineConfig.yFunc lineType color df ]
+
+
+drawXAxis : Float -> DataScale a -> Svg msg
+drawXAxis h xScale =
+    g [ transform [ Translate (paddingX * 1.5) (h - paddingY) ] ] [ xAxis xScale ]
+
+
+drawYAxis : ContinuousScale Float -> Svg msg
+drawYAxis yScale =
+    g [ transform [ Translate (paddingX * 1.5) paddingY ] ] [ yAxis yScale ]
 
 
 drawCurve : DataScale a -> ContinuousScale Float -> YValueMapper a -> LineType -> Color.Color -> DataFrame a -> Svg msg
@@ -139,3 +194,35 @@ getColor index lineConfig =
 
         Just c ->
             c
+
+
+drawCursor : Float -> Maybe MousePosition -> Svg msg
+drawCursor h mousePosition =
+    case mousePosition of
+        Nothing ->
+            g [] []
+
+        Just { x, y } ->
+            -- g
+            --     [--  transform [ Translate (toFloat x) 0 ]
+            --     ]
+            --     [
+            TypedSvg.line
+                [ x1 (Px <| toFloat x)
+                , y1 (Px paddingY)
+                , x2 (Px <| toFloat x)
+                , y2 (Px <| h - paddingY)
+                , TypedSvg.Attributes.style "stroke:rgb(255,0,0);stroke-width:2"
+                ]
+                []
+
+
+
+-- Decoders
+
+
+mouseMoveDecoder : Decode.Decoder MousePosition
+mouseMoveDecoder =
+    Decode.map2 MousePosition
+        (Decode.at [ "offsetX" ] Decode.int)
+        (Decode.at [ "offsetY" ] Decode.int)

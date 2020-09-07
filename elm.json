@@ -17,6 +17,7 @@
         "elm/html": "1.0.0 <= v < 2.0.0",
         "elm/json": "1.0.0 <= v < 2.0.0",
         "elm/time": "1.0.0 <= v < 2.0.0",
+        "elm/virtual-dom": "1.0.2 <= v < 2.0.0",
         "elm-community/list-extra": "8.2.3 <= v < 9.0.0",
         "elm-community/typed-svg": "5.1.0 <= v < 6.0.0",
         "folkertdev/one-true-path-experiment": "4.0.3 <= v < 5.0.0",
