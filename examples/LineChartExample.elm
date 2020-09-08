@@ -103,9 +103,9 @@ view : Model -> Browser.Document Msg
 view model =
     { title = "LineChart Example"
     , body =
-        [ valueChart model
-        , valueChartInteractive model
+        [ valueChartInteractive model
         , timeChart model
+        , valueChart model
         ]
     }
 
@@ -163,6 +163,7 @@ valueChartInteractive model =
         , yAxisLabel = Nothing
         , yMin = Just -5
         , yMax = Nothing
+        , cursor = { color = Color.red }
         , model = model.valueChartModel
         , msgMapper = ValueChartMsg
         }
@@ -193,6 +194,7 @@ timeChart model =
         , yAxisLabel = Nothing
         , yMin = Just -5
         , yMax = Nothing
+        , cursor = { color = Color.green }
         , model = model.timeChartModel
         , msgMapper = TimeChartMsg
         }

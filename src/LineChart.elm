@@ -58,6 +58,10 @@ type alias LineConfig a =
     }
 
 
+type alias CursorConfig =
+    { color : Color.Color }
+
+
 {-| Model for the internal state for interactive charts
 -}
 type alias Model =
@@ -147,7 +151,6 @@ lineChart data =
         , yAxisLabel = data.yAxisLabel
         , yMin = data.yMin
         , yMax = data.yMax
-        , model = initialModel ""
         , msgMapper = \m -> m
         }
         []
@@ -166,17 +169,36 @@ lineChartInteractive :
     , yAxisLabel : Maybe String
     , yMin : Maybe Float
     , yMax : Maybe Float
+    , cursor : CursorConfig
     , model : Model
     , msgMapper : Msg -> msg
     }
     -> Svg msg
 lineChartInteractive data =
-    lineChart_ data
+    lineChart_
+        { dimensions = data.dimensions
+        , lineType = data.lineType
+        , xFunc = data.xFunc
+        , lines = data.lines
+        , dataFrame = data.dataFrame
+        , xAxisLabel = data.xAxisLabel
+        , yAxisLabel = data.yAxisLabel
+        , yMin = data.yMin
+        , yMax = data.yMax
+        , msgMapper = data.msgMapper
+        }
         [ id data.model.id
         , on "mousemove" <| VirtualDom.Normal <| Decode.map UpdateMousePosition mouseMoveDecoder
         , on "mouseleave" <| VirtualDom.Normal <| Decode.succeed OnMouseLeave
         ]
-        [ drawCursor data.dimensions data.model.chartSize data.model.mousePosition
+        [ drawCursor
+            data.dimensions
+            data.model.chartSize
+            data.cursor
+            data.model.mousePosition
+            data.dataFrame
+            data.xFunc
+            data.lines
         ]
 
 
@@ -190,7 +212,6 @@ lineChart_ :
     , yAxisLabel : Maybe String
     , yMin : Maybe Float
     , yMax : Maybe Float
-    , model : Model
     , msgMapper : internalMsg -> externalMsg
     }
     -> List (TypedSvg.Core.Attribute internalMsg)
@@ -308,8 +329,8 @@ getColor index lineConfig =
             c
 
 
-drawCursor : ( Float, Float ) -> ( Float, Float ) -> Maybe MousePosition -> DataScale a -> Svg msg
-drawCursor ( w, h ) chartSize mousePosition xScale =
+drawCursor : ( Float, Float ) -> ( Float, Float ) -> CursorConfig -> Maybe MousePosition -> DataFrame a -> XValueMapper a -> List (LineConfig a) -> DataScale a -> Svg msg
+drawCursor ( w, h ) chartSize cursor mousePosition df xValueMapper lines xScale =
     case mousePosition of
         Nothing ->
             g [] []
@@ -327,17 +348,26 @@ drawCursor ( w, h ) chartSize mousePosition xScale =
                         TimeScale ( s, _ ) ->
                             formatTime <| Scale.invert s (chartX - paddingX * 1.5)
             in
-            g [ transform [ Translate chartX paddingY ] ]
-                [ TypedSvg.line
-                    [ x1 (Px 0)
-                    , y1 (Px 0)
-                    , x2 (Px 0)
-                    , y2 (Px <| h - 2 * paddingY)
-                    , TypedSvg.Attributes.style "stroke:rgb(255,0,0);stroke-width:1"
+            if chartX - paddingX * 1.5 < 0 then
+                g [] []
+
+            else
+                g [ transform [ Translate chartX paddingY ] ]
+                    [ TypedSvg.line
+                        [ x1 (Px 0)
+                        , y1 (Px 0)
+                        , x2 (Px 0)
+                        , y2 (Px <| h - 2 * paddingY)
+                        , stroke <| Paint cursor.color
+                        ]
+                        []
+                    , g
+                        [ transform [ Translate 0 -5, Scale 0.75 0.75 ] ]
+                        [ text_
+                            [ TypedSvg.Attributes.textAnchor TypedSvg.Types.AnchorMiddle ]
+                            [ text label ]
+                        ]
                     ]
-                    []
-                , text_ [ TypedSvg.Attributes.textAnchor TypedSvg.Types.AnchorMiddle ] [ text label ]
-                ]
 
 
 formatTime : Time.Posix -> String
