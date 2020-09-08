@@ -1,6 +1,11 @@
 module LineChart exposing
     ( lineChart
-    , Model, Msg, initialModel, update
+    , lineChartInteractive
+    , init
+    , update
+    , subscriptions
+    , Model
+    , Msg
     )
 
 {-| This module takes care of drawing line charts
@@ -10,8 +15,20 @@ module LineChart exposing
 
 @docs lineChart
 
+
+# Create interactive line charts
+
+@docs lineChartInteractive
+@docs init
+@docs update
+@docs subscriptions
+@docs Model
+@docs Msg
+
 -}
 
+import Browser.Dom
+import Browser.Events
 import Color
 import DataFrame exposing (DataFrame, XValueMapper, YValueMapper)
 import InternalHelper exposing (DataScale(..), createXScale, createYScaleMinMax, indexedColor, paddingX, paddingY, xAxis, yAxis)
@@ -20,11 +37,13 @@ import Path
 import Scale exposing (ContinuousScale)
 import Shape
 import SubPath
+import Task
+import Time
 import TypedSvg exposing (g, svg, text_)
-import TypedSvg.Attributes exposing (class, fill, stroke, strokeWidth, transform, viewBox, x, x1, x2, y, y1, y2)
+import TypedSvg.Attributes exposing (class, fill, id, stroke, strokeWidth, transform, viewBox, x, x1, x2, y1, y2)
 import TypedSvg.Core exposing (Svg, text)
 import TypedSvg.Events exposing (on)
-import TypedSvg.Types exposing (AnchorAlignment(..), Fill(..), Length(..), Transform(..))
+import TypedSvg.Types exposing (AnchorAlignment(..), Length(..), Paint(..), Transform(..))
 import VirtualDom
 
 
@@ -39,8 +58,12 @@ type alias LineConfig a =
     }
 
 
+{-| Model for the internal state for interactive charts
+-}
 type alias Model =
-    { mousePosition : Maybe MousePosition
+    { id : String
+    , chartSize : ( Float, Float )
+    , mousePosition : Maybe MousePosition
     }
 
 
@@ -50,20 +73,53 @@ type alias MousePosition =
     }
 
 
+{-| Msg object to allow interactions with an interactive chart
+-}
 type Msg
     = UpdateMousePosition MousePosition
+    | OnMouseLeave
+    | OnResizeMsg Int Int
+    | SvgElementMsg (Result Browser.Dom.Error Browser.Dom.Element)
 
 
-initialModel : Model
-initialModel =
-    { mousePosition = Nothing }
+{-| Initializes the model and starts some tasks to allow interactive charts to function properly
+-}
+init : String -> ( Model, Cmd Msg )
+init id =
+    ( initialModel id
+    , Task.attempt SvgElementMsg (Browser.Dom.getElement id)
+    )
 
 
+initialModel : String -> Model
+initialModel id =
+    { id = id
+    , chartSize = ( 0, 0 )
+    , mousePosition = Nothing
+    }
+
+
+{-| Updates the model with the given message
+-}
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         UpdateMousePosition pos ->
             ( { model | mousePosition = Just pos }, Cmd.none )
+
+        OnMouseLeave ->
+            ( { model | mousePosition = Nothing }, Cmd.none )
+
+        OnResizeMsg _ _ ->
+            ( model, Task.attempt SvgElementMsg (Browser.Dom.getElement model.id) )
+
+        SvgElementMsg result ->
+            case result of
+                Ok elem ->
+                    ( { model | chartSize = ( elem.element.width, elem.element.height ) }, Cmd.none )
+
+                Err _ ->
+                    ( model, Cmd.none )
 
 
 {-| Creates a line chart with multiple lines
@@ -78,17 +134,72 @@ lineChart :
     , yAxisLabel : Maybe String
     , yMin : Maybe Float
     , yMax : Maybe Float
+    }
+    -> Svg msg
+lineChart data =
+    lineChart_
+        { dimensions = data.dimensions
+        , lineType = data.lineType
+        , xFunc = data.xFunc
+        , lines = data.lines
+        , dataFrame = data.dataFrame
+        , xAxisLabel = data.xAxisLabel
+        , yAxisLabel = data.yAxisLabel
+        , yMin = data.yMin
+        , yMax = data.yMax
+        , model = initialModel ""
+        , msgMapper = \m -> m
+        }
+        []
+        []
+
+
+{-| Creates an interactive line chart with multiple lines
+-}
+lineChartInteractive :
+    { dimensions : ( Float, Float )
+    , lineType : LineType
+    , xFunc : XValueMapper a
+    , lines : List (LineConfig a)
+    , dataFrame : DataFrame a
+    , xAxisLabel : Maybe String
+    , yAxisLabel : Maybe String
+    , yMin : Maybe Float
+    , yMax : Maybe Float
     , model : Model
     , msgMapper : Msg -> msg
     }
     -> Svg msg
-lineChart data =
-    let
-        w =
-            Tuple.first data.dimensions
+lineChartInteractive data =
+    lineChart_ data
+        [ id data.model.id
+        , on "mousemove" <| VirtualDom.Normal <| Decode.map UpdateMousePosition mouseMoveDecoder
+        , on "mouseleave" <| VirtualDom.Normal <| Decode.succeed OnMouseLeave
+        ]
+        [ drawCursor data.dimensions data.model.chartSize data.model.mousePosition
+        ]
 
-        h =
-            Tuple.second data.dimensions
+
+lineChart_ :
+    { dimensions : ( Float, Float )
+    , lineType : LineType
+    , xFunc : XValueMapper a
+    , lines : List (LineConfig a)
+    , dataFrame : DataFrame a
+    , xAxisLabel : Maybe String
+    , yAxisLabel : Maybe String
+    , yMin : Maybe Float
+    , yMax : Maybe Float
+    , model : Model
+    , msgMapper : internalMsg -> externalMsg
+    }
+    -> List (TypedSvg.Core.Attribute internalMsg)
+    -> List (DataScale a -> TypedSvg.Core.Svg internalMsg)
+    -> Svg externalMsg
+lineChart_ data additionalAttributes additionalElements =
+    let
+        ( w, h ) =
+            data.dimensions
 
         xScale =
             createXScale w data.xFunc data.dataFrame
@@ -101,16 +212,17 @@ lineChart data =
     in
     TypedSvg.Core.map data.msgMapper <|
         svg
-            [ viewBox 0 0 w h
-            , on "mousemove" <| VirtualDom.Normal <| Decode.map UpdateMousePosition mouseMoveDecoder
-            ]
-            [ drawXAxis h xScale
-            , drawYAxis yScale
-            , drawSeries xScale yScale data.lineType data.dataFrame data.lines
-            , g [ transform [ Translate (w - paddingX * 4) (h - paddingY * (toFloat lineCount + 1)) ] ] <|
+            (viewBox 0 0 w h
+                :: additionalAttributes
+            )
+            ([ drawXAxis h xScale
+             , drawYAxis yScale
+             , drawSeries xScale yScale data.lineType data.dataFrame data.lines
+             , g [ transform [ Translate (w - paddingX * 4) (h - paddingY * (toFloat lineCount + 1)) ] ] <|
                 List.indexedMap (drawLabel lineCount) data.lines
-            , drawCursor h data.model.mousePosition
-            ]
+             ]
+                ++ List.map (\e -> e xScale) additionalElements
+            )
 
 
 drawSeries : DataScale a -> ContinuousScale Float -> LineType -> DataFrame a -> List (LineConfig a) -> Svg msg
@@ -163,7 +275,7 @@ reallyDrawCurve xScale yScale xValueMapper yValueMapper lineType color df =
         |> List.map (\item -> ( Scale.convert xScale (xValueMapper item), Scale.convert yScale (yValueMapper item) ))
         |> List.map Just
         |> Shape.line lineType
-        |> (\path -> Path.element path [ stroke color, fill FillNone, strokeWidth (Px 2) ])
+        |> (\path -> Path.element path [ stroke <| Paint color, fill PaintNone, strokeWidth (Px 2) ])
 
 
 drawLabel : Int -> Int -> LineConfig a -> Svg msg
@@ -181,7 +293,7 @@ drawLabel lineCount index lineConfig =
                     toFloat lineCount * paddingY
             in
             g [ transform [ Translate 0 (maxHeight - toFloat (lineCount - index) * paddingY) ] ]
-                [ TypedSvg.line [ stroke color, strokeWidth (Px 3), x1 (Px 0), y1 (Px -3), x2 (Px 10), y2 (Px -3) ] []
+                [ TypedSvg.line [ stroke <| Paint color, strokeWidth (Px 3), x1 (Px 0), y1 (Px -3), x2 (Px 10), y2 (Px -3) ] []
                 , text_ [ x (Px 13) ] [ text label ]
                 ]
 
@@ -196,33 +308,143 @@ getColor index lineConfig =
             c
 
 
-drawCursor : Float -> Maybe MousePosition -> Svg msg
-drawCursor h mousePosition =
+drawCursor : ( Float, Float ) -> ( Float, Float ) -> Maybe MousePosition -> DataScale a -> Svg msg
+drawCursor ( w, h ) chartSize mousePosition xScale =
     case mousePosition of
         Nothing ->
             g [] []
 
-        Just { x, y } ->
-            -- g
-            --     [--  transform [ Translate (toFloat x) 0 ]
-            --     ]
-            --     [
-            TypedSvg.line
-                [ x1 (Px <| toFloat x)
-                , y1 (Px paddingY)
-                , x2 (Px <| toFloat x)
-                , y2 (Px <| h - paddingY)
-                , TypedSvg.Attributes.style "stroke:rgb(255,0,0);stroke-width:2"
+        Just pos ->
+            let
+                ( chartX, _ ) =
+                    toChartPos ( w, h ) chartSize pos
+
+                label =
+                    case xScale of
+                        ValueScale ( s, _ ) ->
+                            String.fromFloat <| Scale.invert s (chartX - paddingX * 1.5)
+
+                        TimeScale ( s, _ ) ->
+                            formatTime <| Scale.invert s (chartX - paddingX * 1.5)
+            in
+            g [ transform [ Translate chartX paddingY ] ]
+                [ TypedSvg.line
+                    [ x1 (Px 0)
+                    , y1 (Px 0)
+                    , x2 (Px 0)
+                    , y2 (Px <| h - 2 * paddingY)
+                    , TypedSvg.Attributes.style "stroke:rgb(255,0,0);stroke-width:1"
+                    ]
+                    []
+                , text_ [ TypedSvg.Attributes.textAnchor TypedSvg.Types.AnchorMiddle ] [ text label ]
                 ]
-                []
 
 
+formatTime : Time.Posix -> String
+formatTime time =
+    ""
+        ++ (time
+                |> Time.toDay Time.utc
+                |> String.fromInt
+                |> zeroPad 2
+           )
+        ++ "."
+        ++ (time
+                |> Time.toMonth Time.utc
+                |> monthToInt
+                |> String.fromInt
+                |> zeroPad 2
+           )
+        ++ "."
+        ++ (time
+                |> Time.toYear Time.utc
+                |> String.fromInt
+                |> zeroPad 2
+           )
+        ++ " "
+        ++ (time
+                |> Time.toHour Time.utc
+                |> String.fromInt
+                |> zeroPad 2
+           )
+        ++ ":"
+        ++ (time
+                |> Time.toMinute Time.utc
+                |> String.fromInt
+                |> zeroPad 2
+           )
 
--- Decoders
+
+monthToInt : Time.Month -> Int
+monthToInt month =
+    case month of
+        Time.Jan ->
+            1
+
+        Time.Feb ->
+            2
+
+        Time.Mar ->
+            3
+
+        Time.Apr ->
+            4
+
+        Time.May ->
+            5
+
+        Time.Jun ->
+            6
+
+        Time.Jul ->
+            7
+
+        Time.Aug ->
+            8
+
+        Time.Sep ->
+            9
+
+        Time.Oct ->
+            10
+
+        Time.Nov ->
+            11
+
+        Time.Dec ->
+            12
+
+
+zeroPad : Int -> String -> String
+zeroPad width s =
+    if String.length s < width then
+        String.repeat (width - String.length s) "0" ++ s
+
+    else
+        s
+
+
+toChartPos : ( Float, Float ) -> ( Float, Float ) -> MousePosition -> ( Float, Float )
+toChartPos ( w, h ) ( chartWidth, chartHeight ) pos =
+    let
+        chartX =
+            toFloat pos.x / chartWidth * w
+
+        chartY =
+            toFloat pos.y / chartHeight * h
+    in
+    ( chartX, chartY )
 
 
 mouseMoveDecoder : Decode.Decoder MousePosition
 mouseMoveDecoder =
     Decode.map2 MousePosition
-        (Decode.at [ "offsetX" ] Decode.int)
-        (Decode.at [ "offsetY" ] Decode.int)
+        (Decode.at [ "x" ] Decode.int)
+        (Decode.at [ "x" ] Decode.int)
+
+
+{-| Subscribes to various events to allow interactive charts to function properly
+-}
+subscriptions : Model -> Sub Msg
+subscriptions _ =
+    Browser.Events.onResize OnResizeMsg

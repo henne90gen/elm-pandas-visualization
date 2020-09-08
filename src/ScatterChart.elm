@@ -14,7 +14,8 @@ import TypedSvg exposing (circle, g, svg)
 import TypedSvg.Attributes exposing (class, fill, stroke, transform, viewBox)
 import TypedSvg.Attributes.InPx
 import TypedSvg.Core exposing (Svg)
-import TypedSvg.Types exposing (AnchorAlignment(..), Fill(..), Length(..), Transform(..))
+import TypedSvg.Types exposing (AnchorAlignment(..), Length(..), Paint(..), Transform(..))
+
 
 {-| Creats a scatter chart from a single series
 -}
@@ -64,7 +65,7 @@ reallyDrawCircle xScale yScale xValueMapper yValueMapper index value =
         [ TypedSvg.Attributes.InPx.cx <| Scale.convert xScale (xValueMapper value)
         , TypedSvg.Attributes.InPx.cy <| Scale.convert yScale (yValueMapper value)
         , TypedSvg.Attributes.InPx.r 1.5
-        , fill (Fill <| indexedColor index)
-        , stroke <| Color.rgba 1 1 1 0
+        , fill (Paint <| indexedColor index)
+        , stroke <| Paint <| Color.rgba 1 1 1 0
         ]
         []

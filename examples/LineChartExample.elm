@@ -58,17 +58,27 @@ update msg model =
 
 
 subscriptions : Model -> Sub Msg
-subscriptions _ =
-    Sub.none
+subscriptions model =
+    Sub.batch
+        [ Sub.map ValueChartMsg (LineChart.subscriptions model.valueChartModel)
+        , Sub.map TimeChartMsg (LineChart.subscriptions model.timeChartModel)
+        ]
 
 
 init : flags -> ( Model, Cmd Msg )
 init _ =
+    let
+        ( valueModel, valueCmd ) =
+            LineChart.init "value"
+
+        ( timeModel, timeCmd ) =
+            LineChart.init "time"
+    in
     ( { df = DataFrame.create exampleData
-      , valueChartModel = LineChart.initialModel
-      , timeChartModel = LineChart.initialModel
+      , valueChartModel = valueModel
+      , timeChartModel = timeModel
       }
-    , Cmd.none
+    , Cmd.batch [ Cmd.map ValueChartMsg valueCmd, Cmd.map TimeChartMsg timeCmd ]
     )
 
 
@@ -94,14 +104,43 @@ view model =
     { title = "LineChart Example"
     , body =
         [ valueChart model
+        , valueChartInteractive model
         , timeChart model
         ]
     }
 
 
-valueChart : Model -> Html Msg
+valueChart : Model -> Html msg
 valueChart model =
     LineChart.lineChart
+        { dimensions = ( 600, 300 )
+        , lineType = Shape.linearCurve
+        , xFunc = DataFrame.ValueMapper (\e -> e.x1)
+        , lines =
+            [ { yFunc = \e -> e.y1 * 1000
+              , label = Just "my-data-1"
+              , color = Just (Color.rgb 1 0 1)
+              }
+            , { yFunc = \e -> e.y2 * 1000
+              , label = Just "my-data-2"
+              , color = Just (Color.rgb 0 1 1)
+              }
+            , { yFunc = \e -> (e.y2 - 1) * 1000
+              , label = Just "my-data-3"
+              , color = Just (Color.rgb 1 1 0)
+              }
+            ]
+        , dataFrame = model.df
+        , xAxisLabel = Nothing
+        , yAxisLabel = Nothing
+        , yMin = Just -5
+        , yMax = Nothing
+        }
+
+
+valueChartInteractive : Model -> Html Msg
+valueChartInteractive model =
+    LineChart.lineChartInteractive
         { dimensions = ( 600, 300 )
         , lineType = Shape.linearCurve
         , xFunc = DataFrame.ValueMapper (\e -> e.x1)
@@ -131,7 +170,7 @@ valueChart model =
 
 timeChart : Model -> Html Msg
 timeChart model =
-    LineChart.lineChart
+    LineChart.lineChartInteractive
         { dimensions = ( 600, 300 )
         , lineType = Shape.linearCurve
         , xFunc = DataFrame.TimeMapper (\e -> e.x2)

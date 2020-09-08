@@ -14,14 +14,13 @@ import Color
 import DataFrame exposing (DataFrame, YValueMapper)
 import Html exposing (text)
 import InternalHelper exposing (indexedColor, paddingX, paddingY)
-import List.Extra
 import Round
 import Scale exposing (BandScale, ContinuousScale, defaultBandConfig)
-import TypedSvg exposing (g, rect, style, svg)
+import TypedSvg exposing (g, rect, svg)
 import TypedSvg.Attributes exposing (class, fill, fontSize, textAnchor, transform, viewBox)
 import TypedSvg.Attributes.InPx exposing (height, width, x, y)
 import TypedSvg.Core exposing (Svg)
-import TypedSvg.Types exposing (AnchorAlignment(..), Fill(..), Length(..), Transform(..))
+import TypedSvg.Types exposing (AnchorAlignment(..), Length(..), Paint(..), Transform(..))
 
 
 type alias XValueMapper a =
@@ -120,7 +119,7 @@ bar extendedDD barWidth index yValueMapper elem =
             , y <| Scale.convert extendedDD.yScale yValue
             , width <| barWidth
             , height <| h - Scale.convert extendedDD.yScale yValue - 2 * paddingY
-            , fill (Fill <| indexedColor index)
+            , fill <| Paint <| indexedColor index
             ]
             []
         , textOnBar extendedDD barWidth index yValue elem
@@ -148,7 +147,7 @@ textOnBar extendedDD barWidth index year value =
         , transform [ Rotate 90 x_ y_ ]
         , textAnchor anchor
         , fontSize (Px fontSize_)
-        , fill (Fill <| Color.rgb 0.1 0.1 0.1)
+        , fill <| Paint <| Color.rgb 0.1 0.1 0.1
         ]
         [ text <| Round.round 2 year ]
 
