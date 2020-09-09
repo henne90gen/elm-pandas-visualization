@@ -354,17 +354,53 @@ drawCursor ( w, h ) chartSize cursor xFunc lines df mousePosition ( xScale, ySca
                 graphX =
                     chartX - paddingX * 1.5
 
-                label =
+                ( label, ( min, max ) ) =
                     case xScale of
-                        ValueScale ( s, _ ) ->
-                            String.fromFloat <| Scale.invert s (chartX - paddingX * 1.5)
+                        ValueScale ( s, f ) ->
+                            let
+                                linesXData =
+                                    List.map f df.data
 
-                        TimeScale ( s, _ ) ->
-                            formatTime <| Scale.invert s (chartX - paddingX * 1.5)
+                                minValue =
+                                    linesXData
+                                        |> List.head
+                                        |> Maybe.withDefault 0
+                                        |> Scale.convert s
+
+                                maxValue =
+                                    linesXData
+                                        |> List.Extra.last
+                                        |> Maybe.withDefault 0
+                                        |> Scale.convert s
+                            in
+                            ( String.fromFloat <| Scale.invert s graphX
+                            , ( minValue, maxValue )
+                            )
+
+                        TimeScale ( s, f ) ->
+                            let
+                                linesXData =
+                                    List.map f df.data
+
+                                minValue =
+                                    linesXData
+                                        |> List.head
+                                        |> Maybe.withDefault (Time.millisToPosix 0)
+                                        |> Scale.convert s
+
+                                maxValue =
+                                    linesXData
+                                        |> List.Extra.last
+                                        |> Maybe.withDefault (Time.millisToPosix 0)
+                                        |> Scale.convert s
+                            in
+                            ( formatTime <| Scale.invert s graphX
+                            , ( minValue, maxValue )
+                            )
 
                 linesData =
                     List.map
-                        (\l -> List.map (\item -> l.yFunc item) df.data)
+                        (\l -> List.map l.yFunc df.data)
                         lines
 
                 firsts =
@@ -382,24 +418,19 @@ drawCursor ( w, h ) chartSize cursor xFunc lines df mousePosition ( xScale, ySca
                         |> List.map
                             (\( first, tail ) -> Interpolation.piecewise Interpolation.float first tail)
 
-                ( chartWidth, _ ) =
-                    chartSize
-
                 dots =
                     List.map
                         (\interpolator ->
                             TypedSvg.circle
                                 [ TypedSvg.Attributes.cx <| Px 0
                                 , graphX
-                                    / (w - 2 * paddingX)
-                                    |> Debug.log "raw"
+                                    |> (\n -> n - min)
+                                    |> (\n -> n / (max - min))
                                     |> interpolator
-                                    |> Debug.log "interp"
                                     |> Scale.convert yScale
-                                    |> Debug.log "convert"
                                     |> Px
                                     |> TypedSvg.Attributes.cy
-                                , TypedSvg.Attributes.r <| Px 1
+                                , TypedSvg.Attributes.r <| Px 2
                                 ]
                                 []
                         )
@@ -424,7 +455,11 @@ drawCursor ( w, h ) chartSize cursor xFunc lines df mousePosition ( xScale, ySca
                             [ TypedSvg.Attributes.textAnchor TypedSvg.Types.AnchorMiddle ]
                             [ text label ]
                         ]
-                    , g [] dots
+                    , if graphX < min || graphX > max then
+                        g [] []
+
+                      else
+                        g [] dots
                     ]
 
 
