@@ -1,7 +1,6 @@
 module DataFrame exposing
-    ( DataFrame, create, dataFrameDecoder
+    ( DataFrame, create, dataFrameDecoder, XValueMapper(..), YValueMapper
     , map, filter, length
-    , XValueMapper(..), YValueMapper
     )
 
 {-| Elm representation of a pandas DataFrame.
@@ -39,11 +38,13 @@ type alias Field =
     , type_ : String
     }
 
+
 {-| Decides how the values are mapped to the x-axis
 -}
 type XValueMapper a
     = TimeMapper (a -> Posix)
     | ValueMapper (a -> Float)
+
 
 {-| Decides how the values are mapped to the y-axis
 -}

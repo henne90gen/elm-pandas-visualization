@@ -149,14 +149,15 @@ valueChartInteractive model =
               , label = Just "my-data-1"
               , color = Just (Color.rgb 1 0 1)
               }
-            , { yFunc = \e -> e.y2 * 1000
-              , label = Just "my-data-2"
-              , color = Just (Color.rgb 0 1 1)
-              }
-            , { yFunc = \e -> (e.y2 - 1) * 1000
-              , label = Just "my-data-3"
-              , color = Just (Color.rgb 1 1 0)
-              }
+
+            --, { yFunc = \e -> e.y2 * 1000
+            --, label = Just "my-data-2"
+            --, color = Just (Color.rgb 0 1 1)
+            --}
+            --, { yFunc = \e -> (e.y2 - 1) * 1000
+            --, label = Just "my-data-3"
+            --, color = Just (Color.rgb 1 1 0)
+            --}
             ]
         , dataFrame = model.df
         , xAxisLabel = Nothing

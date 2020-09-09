@@ -32,7 +32,9 @@ import Browser.Events
 import Color
 import DataFrame exposing (DataFrame, XValueMapper, YValueMapper)
 import InternalHelper exposing (DataScale(..), createXScale, createYScaleMinMax, indexedColor, paddingX, paddingY, xAxis, yAxis)
+import Interpolation
 import Json.Decode as Decode
+import List.Extra
 import Path
 import Scale exposing (ContinuousScale)
 import Shape
@@ -195,10 +197,10 @@ lineChartInteractive data =
             data.dimensions
             data.model.chartSize
             data.cursor
-            data.model.mousePosition
-            data.dataFrame
             data.xFunc
             data.lines
+            data.dataFrame
+            data.model.mousePosition
         ]
 
 
@@ -215,7 +217,7 @@ lineChart_ :
     , msgMapper : internalMsg -> externalMsg
     }
     -> List (TypedSvg.Core.Attribute internalMsg)
-    -> List (DataScale a -> TypedSvg.Core.Svg internalMsg)
+    -> List (( DataScale a, ContinuousScale Float ) -> TypedSvg.Core.Svg internalMsg)
     -> Svg externalMsg
 lineChart_ data additionalAttributes additionalElements =
     let
@@ -242,7 +244,7 @@ lineChart_ data additionalAttributes additionalElements =
              , g [ transform [ Translate (w - paddingX * 4) (h - paddingY * (toFloat lineCount + 1)) ] ] <|
                 List.indexedMap (drawLabel lineCount) data.lines
              ]
-                ++ List.map (\e -> e xScale) additionalElements
+                ++ List.map (\e -> e ( xScale, yScale )) additionalElements
             )
 
 
@@ -329,8 +331,17 @@ getColor index lineConfig =
             c
 
 
-drawCursor : ( Float, Float ) -> ( Float, Float ) -> CursorConfig -> Maybe MousePosition -> DataFrame a -> XValueMapper a -> List (LineConfig a) -> DataScale a -> Svg msg
-drawCursor ( w, h ) chartSize cursor mousePosition df xValueMapper lines xScale =
+drawCursor :
+    ( Float, Float )
+    -> ( Float, Float )
+    -> CursorConfig
+    -> XValueMapper a
+    -> List (LineConfig a)
+    -> DataFrame a
+    -> Maybe MousePosition
+    -> ( DataScale a, ContinuousScale Float )
+    -> Svg msg
+drawCursor ( w, h ) chartSize cursor xFunc lines df mousePosition ( xScale, yScale ) =
     case mousePosition of
         Nothing ->
             g [] []
@@ -340,6 +351,9 @@ drawCursor ( w, h ) chartSize cursor mousePosition df xValueMapper lines xScale 
                 ( chartX, _ ) =
                     toChartPos ( w, h ) chartSize pos
 
+                graphX =
+                    chartX - paddingX * 1.5
+
                 label =
                     case xScale of
                         ValueScale ( s, _ ) ->
@@ -347,8 +361,51 @@ drawCursor ( w, h ) chartSize cursor mousePosition df xValueMapper lines xScale 
 
                         TimeScale ( s, _ ) ->
                             formatTime <| Scale.invert s (chartX - paddingX * 1.5)
+
+                linesData =
+                    List.map
+                        (\l -> List.map (\item -> l.yFunc item) df.data)
+                        lines
+
+                firsts =
+                    List.map
+                        (\l -> List.head l |> Maybe.withDefault 0)
+                        linesData
+
+                tails =
+                    List.map
+                        (\l -> List.tail l |> Maybe.withDefault [])
+                        linesData
+
+                interpolators =
+                    List.Extra.zip firsts tails
+                        |> List.map
+                            (\( first, tail ) -> Interpolation.piecewise Interpolation.float first tail)
+
+                ( chartWidth, _ ) =
+                    chartSize
+
+                dots =
+                    List.map
+                        (\interpolator ->
+                            TypedSvg.circle
+                                [ TypedSvg.Attributes.cx <| Px 0
+                                , graphX
+                                    / (w - 2 * paddingX)
+                                    |> Debug.log "raw"
+                                    |> interpolator
+                                    |> Debug.log "interp"
+                                    |> Scale.convert yScale
+                                    |> Debug.log "convert"
+                                    |> Px
+                                    |> TypedSvg.Attributes.cy
+                                , TypedSvg.Attributes.r <| Px 1
+                                ]
+                                []
+                        )
+                        interpolators
             in
-            if chartX - paddingX * 1.5 < 0 then
+            if graphX < 0 then
                 g [] []
 
             else
@@ -367,6 +424,7 @@ drawCursor ( w, h ) chartSize cursor mousePosition df xValueMapper lines xScale 
                             [ TypedSvg.Attributes.textAnchor TypedSvg.Types.AnchorMiddle ]
                             [ text label ]
                         ]
+                    , g [] dots
                     ]
 
 
