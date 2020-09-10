@@ -36,6 +36,7 @@ import Interpolation
 import Json.Decode as Decode
 import List.Extra
 import Path
+import Round
 import Scale exposing (ContinuousScale)
 import Shape
 import SubPath
@@ -61,7 +62,10 @@ type alias LineConfig a =
 
 
 type alias CursorConfig =
-    { color : Color.Color }
+    { color : Color.Color
+    , dotColor : Color.Color
+    , dotSize : Float
+    }
 
 
 {-| Model for the internal state for interactive charts
@@ -197,7 +201,6 @@ lineChartInteractive data =
             data.dimensions
             data.model.chartSize
             data.cursor
-            data.xFunc
             data.lines
             data.dataFrame
             data.model.mousePosition
@@ -331,136 +334,182 @@ getColor index lineConfig =
             c
 
 
+getLabelAndMinMax : ContinuousScale b -> (a -> b) -> b -> (b -> String) -> Float -> DataFrame a -> ( String, ( Float, Float ) )
+getLabelAndMinMax s f default toString graphX df =
+    let
+        linesXData =
+            List.map f df.data
+
+        minValue =
+            linesXData
+                |> List.head
+                |> Maybe.withDefault default
+                |> Scale.convert s
+
+        maxValue =
+            linesXData
+                |> List.Extra.last
+                |> Maybe.withDefault default
+                |> Scale.convert s
+    in
+    ( toString <| Scale.invert s graphX
+    , ( minValue, maxValue )
+    )
+
+
 drawCursor :
     ( Float, Float )
     -> ( Float, Float )
     -> CursorConfig
-    -> XValueMapper a
     -> List (LineConfig a)
     -> DataFrame a
     -> Maybe MousePosition
     -> ( DataScale a, ContinuousScale Float )
     -> Svg msg
-drawCursor ( w, h ) chartSize cursor xFunc lines df mousePosition ( xScale, yScale ) =
+drawCursor dimensions chartSize cursor lines df mousePosition scales =
     case mousePosition of
         Nothing ->
             g [] []
 
         Just pos ->
-            let
-                ( chartX, _ ) =
-                    toChartPos ( w, h ) chartSize pos
+            drawCursorMouseOnChart dimensions chartSize cursor lines df pos scales
 
-                graphX =
-                    chartX - paddingX * 1.5
 
-                ( label, ( min, max ) ) =
-                    case xScale of
-                        ValueScale ( s, f ) ->
-                            let
-                                linesXData =
-                                    List.map f df.data
+drawCursorMouseOnChart :
+    ( Float, Float )
+    -> ( Float, Float )
+    -> CursorConfig
+    -> List (LineConfig a)
+    -> DataFrame a
+    -> MousePosition
+    -> ( DataScale a, ContinuousScale Float )
+    -> Svg msg
+drawCursorMouseOnChart ( w, h ) chartSize cursor lines df pos scales =
+    let
+        ( chartX, chartY ) =
+            toChartPos ( w, h ) chartSize pos
 
-                                minValue =
-                                    linesXData
-                                        |> List.head
-                                        |> Maybe.withDefault 0
-                                        |> Scale.convert s
+        graphX =
+            chartX - paddingX * 1.5
+    in
+    if graphX < 0 then
+        g [] []
 
-                                maxValue =
-                                    linesXData
-                                        |> List.Extra.last
-                                        |> Maybe.withDefault 0
-                                        |> Scale.convert s
-                            in
-                            ( String.fromFloat <| Scale.invert s graphX
-                            , ( minValue, maxValue )
-                            )
+    else
+        drawCursorMouseOnGraph ( w, h ) cursor lines df ( chartX, chartY ) scales
 
-                        TimeScale ( s, f ) ->
-                            let
-                                linesXData =
-                                    List.map f df.data
 
-                                minValue =
-                                    linesXData
-                                        |> List.head
-                                        |> Maybe.withDefault (Time.millisToPosix 0)
-                                        |> Scale.convert s
+drawCursorMouseOnGraph :
+    ( Float, Float )
+    -> CursorConfig
+    -> List (LineConfig a)
+    -> DataFrame a
+    -> ( Float, Float )
+    -> ( DataScale a, ContinuousScale Float )
+    -> Svg msg
+drawCursorMouseOnGraph ( _, h ) cursor lines df ( chartX, chartY ) ( xScale, yScale ) =
+    let
+        graphX =
+            chartX - paddingX * 1.5
 
-                                maxValue =
-                                    linesXData
-                                        |> List.Extra.last
-                                        |> Maybe.withDefault (Time.millisToPosix 0)
-                                        |> Scale.convert s
-                            in
-                            ( formatTime <| Scale.invert s graphX
-                            , ( minValue, maxValue )
-                            )
+        graphY =
+            chartY - paddingY * 1.5
 
-                linesData =
-                    List.map
-                        (\l -> List.map l.yFunc df.data)
-                        lines
+        ( label, ( min, max ) ) =
+            case xScale of
+                ValueScale ( s, f ) ->
+                    getLabelAndMinMax s f 0 (Round.round 2) graphX df
 
-                firsts =
-                    List.map
-                        (\l -> List.head l |> Maybe.withDefault 0)
-                        linesData
+                TimeScale ( s, f ) ->
+                    getLabelAndMinMax s f (Time.millisToPosix 0) formatTime graphX df
+    in
+    g [ transform [ Translate chartX paddingY ] ]
+        [ TypedSvg.line
+            [ x1 (Px 0)
+            , y1 (Px 0)
+            , x2 (Px 0)
+            , y2 (Px <| h - 2 * paddingY)
+            , stroke <| Paint cursor.color
+            ]
+            []
+        , g
+            [ transform [ Translate 0 -5, Scale 0.75 0.75 ] ]
+            [ text_
+                [ TypedSvg.Attributes.textAnchor TypedSvg.Types.AnchorMiddle ]
+                [ text label ]
+            ]
+        , drawCursorDots ( min, max ) cursor yScale lines df ( graphX, graphY )
+        ]
 
-                tails =
-                    List.map
-                        (\l -> List.tail l |> Maybe.withDefault [])
-                        linesData
 
-                interpolators =
-                    List.Extra.zip firsts tails
-                        |> List.map
-                            (\( first, tail ) -> Interpolation.piecewise Interpolation.float first tail)
+drawCursorDots : ( Float, Float ) -> CursorConfig -> ContinuousScale Float -> List (LineConfig a) -> DataFrame a -> ( Float, Float ) -> Svg msg
+drawCursorDots ( min, max ) cursor yScale lines df ( graphX, graphY ) =
+    if graphX < min || graphX > max then
+        g [] []
 
-                dots =
-                    List.map
-                        (\interpolator ->
-                            TypedSvg.circle
-                                [ TypedSvg.Attributes.cx <| Px 0
-                                , graphX
-                                    |> (\n -> n - min)
-                                    |> (\n -> n / (max - min))
-                                    |> interpolator
-                                    |> Scale.convert yScale
-                                    |> Px
-                                    |> TypedSvg.Attributes.cy
-                                , TypedSvg.Attributes.r <| Px 2
-                                ]
-                                []
-                        )
-                        interpolators
-            in
-            if graphX < 0 then
-                g [] []
+    else
+        g [] (drawCursorDotsMouseOnData ( min, max ) cursor yScale lines df ( graphX, graphY ))
 
-            else
-                g [ transform [ Translate chartX paddingY ] ]
-                    [ TypedSvg.line
-                        [ x1 (Px 0)
-                        , y1 (Px 0)
-                        , x2 (Px 0)
-                        , y2 (Px <| h - 2 * paddingY)
-                        , stroke <| Paint cursor.color
+
+drawCursorDotsMouseOnData : ( Float, Float ) -> CursorConfig -> ContinuousScale Float -> List (LineConfig a) -> DataFrame a -> ( Float, Float ) -> List (Svg msg)
+drawCursorDotsMouseOnData ( min, max ) cursor yScale lines df ( graphX, graphY ) =
+    let
+        linesData =
+            List.map
+                (\l -> List.map l.yFunc df.data)
+                lines
+
+        firsts =
+            List.map
+                (\l -> List.head l |> Maybe.withDefault 0)
+                linesData
+
+        tails =
+            List.map
+                (\l -> List.tail l |> Maybe.withDefault [])
+                linesData
+
+        interpolators =
+            List.Extra.zip firsts tails
+                |> List.map
+                    (\( first, tail ) -> Interpolation.piecewise Interpolation.float first tail)
+
+        dotYs =
+            List.map
+                (\interpolator ->
+                    let
+                        value =
+                            graphX
+                                |> (\n -> n - min)
+                                |> (\n -> n / (max - min))
+                                |> interpolator
+                    in
+                    ( value, Scale.convert yScale value )
+                )
+                interpolators
+    in
+    List.indexedMap
+        (\idx ( value, dotY ) ->
+            g []
+                [ g [ transform [ Translate 0 dotY ] ]
+                    [ TypedSvg.circle
+                        [ TypedSvg.Attributes.cx <| Px 0
+                        , TypedSvg.Attributes.cy <| Px 0
+                        , TypedSvg.Attributes.r <| Px cursor.dotSize
+                        , TypedSvg.Attributes.fill <| Paint cursor.dotColor
                         ]
                         []
-                    , g
-                        [ transform [ Translate 0 -5, Scale 0.75 0.75 ] ]
-                        [ text_
-                            [ TypedSvg.Attributes.textAnchor TypedSvg.Types.AnchorMiddle ]
-                            [ text label ]
-                        ]
-                    , if graphX < min || graphX > max then
-                        g [] []
-
-                      else
-                        g [] dots
                     ]
+                , g [ transform [ Translate -5 (graphY + toFloat idx * 10), Scale 0.75 0.75 ] ]
+                    [ text_
+                        [ TypedSvg.Attributes.textAnchor TypedSvg.Types.AnchorEnd
+                        , TypedSvg.Attributes.dominantBaseline TypedSvg.Types.DominantBaselineMiddle
+                        ]
+                        [ text <| Round.round 2 value ]
+                    ]
+                ]
+        )
+        dotYs
 
 
 formatTime : Time.Posix -> String
@@ -563,7 +612,7 @@ mouseMoveDecoder : Decode.Decoder MousePosition
 mouseMoveDecoder =
     Decode.map2 MousePosition
         (Decode.at [ "x" ] Decode.int)
-        (Decode.at [ "x" ] Decode.int)
+        (Decode.at [ "y" ] Decode.int)
 
 
 {-| Subscribes to various events to allow interactive charts to function properly

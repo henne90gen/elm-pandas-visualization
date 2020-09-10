@@ -87,7 +87,7 @@ exampleData =
     [ dataPoint 0 10 7
     , dataPoint 1 15 10
     , dataPoint 2 13 5
-    , dataPoint 3 9 8
+    , dataPoint 3 9 11
     , dataPoint 4 11 7
     , dataPoint 5 17 10
     , dataPoint 6 10 8
@@ -163,7 +163,7 @@ valueChartInteractive model =
         , yAxisLabel = Nothing
         , yMin = Just -5
         , yMax = Nothing
-        , cursor = { color = Color.red }
+        , cursor = { color = Color.red, dotColor = Color.darkGreen, dotSize = 3 }
         , model = model.valueChartModel
         , msgMapper = ValueChartMsg
         }
@@ -194,7 +194,7 @@ timeChart model =
         , yAxisLabel = Nothing
         , yMin = Just -5
         , yMax = Nothing
-        , cursor = { color = Color.green }
+        , cursor = { color = Color.green, dotColor = Color.black, dotSize = 2 }
         , model = model.timeChartModel
         , msgMapper = TimeChartMsg
         }
