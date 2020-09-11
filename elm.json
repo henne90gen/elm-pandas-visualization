@@ -3,7 +3,7 @@
     "name": "henne90gen/elm-pandas-visualization",
     "summary": "Allows to create graphs from a pandas DataFrame.",
     "license": "BSD-3-Clause",
-    "version": "5.1.0",
+    "version": "6.0.0",
     "exposed-modules": [
         "DataFrame",
         "LineChart",
