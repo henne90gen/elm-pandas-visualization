@@ -68,17 +68,17 @@ subscriptions model =
 init : flags -> ( Model, Cmd Msg )
 init _ =
     let
-        ( valueModel, valueCmd ) =
-            LineChart.init "value"
+        valueModel =
+            LineChart.initialModel "value"
 
-        ( timeModel, timeCmd ) =
-            LineChart.init "time"
+        timeModel =
+            LineChart.initialModel "time"
     in
     ( { df = DataFrame.create exampleData
       , valueChartModel = valueModel
       , timeChartModel = timeModel
       }
-    , Cmd.batch [ Cmd.map ValueChartMsg valueCmd, Cmd.map TimeChartMsg timeCmd ]
+    , Cmd.none
     )
 
 

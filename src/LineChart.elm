@@ -1,7 +1,7 @@
 module LineChart exposing
     ( lineChart
     , lineChartInteractive
-    , init
+    , initialModel
     , update
     , subscriptions
     , Model
@@ -19,7 +19,7 @@ module LineChart exposing
 # Create interactive line charts
 
 @docs lineChartInteractive
-@docs init
+@docs initialModel
 @docs update
 @docs subscriptions
 @docs Model
@@ -90,17 +90,11 @@ type Msg
     | OnMouseLeave
     | OnResizeMsg Int Int
     | SvgElementMsg (Result Browser.Dom.Error Browser.Dom.Element)
+    | ChartLoaded
 
 
-{-| Initializes the model and starts some tasks to allow interactive charts to function properly
+{-| Initializes the model
 -}
-init : String -> ( Model, Cmd Msg )
-init id =
-    ( initialModel id
-    , Task.attempt SvgElementMsg (Browser.Dom.getElement id)
-    )
-
-
 initialModel : String -> Model
 initialModel id =
     { id = id
@@ -121,6 +115,9 @@ update msg model =
             ( { model | mousePosition = Nothing }, Cmd.none )
 
         OnResizeMsg _ _ ->
+            ( model, Task.attempt SvgElementMsg (Browser.Dom.getElement model.id) )
+
+        ChartLoaded ->
             ( model, Task.attempt SvgElementMsg (Browser.Dom.getElement model.id) )
 
         SvgElementMsg result ->
@@ -194,6 +191,9 @@ lineChartInteractive data =
         , msgMapper = data.msgMapper
         }
         [ id data.model.id
+
+        -- , TypedSvg.Events.on "load" <| VirtualDom.Normal <| Decode.succeed ChartLoaded
+        -- , TypedSvg.Events.onLoad ChartLoaded
         , on "mousemove" <| VirtualDom.Normal <| Decode.map UpdateMousePosition mouseMoveDecoder
         , on "mouseleave" <| VirtualDom.Normal <| Decode.succeed OnMouseLeave
         ]
@@ -204,6 +204,7 @@ lineChartInteractive data =
             data.lines
             data.dataFrame
             data.model.mousePosition
+        , insertOnLoadHack
         ]
 
 
@@ -606,6 +607,20 @@ toChartPos ( w, h ) ( chartWidth, chartHeight ) pos =
             toFloat pos.y / chartHeight * h
     in
     ( chartX, chartY )
+
+
+insertOnLoadHack : ( DataScale a, ContinuousScale Float ) -> Svg Msg
+insertOnLoadHack _ =
+    g
+        []
+        [ TypedSvg.style []
+            [ text "@keyframes pulse { 0% {background-color: white;} 100% {background-color: white;}}" ]
+        , g
+            [ TypedSvg.Attributes.style "display: inline-block; animation: pulse 0.01s"
+            , TypedSvg.Events.on "animationend" <| VirtualDom.Normal <| Decode.succeed ChartLoaded
+            ]
+            []
+        ]
 
 
 mouseMoveDecoder : Decode.Decoder MousePosition
