@@ -68,11 +68,19 @@ type alias CursorConfig =
     }
 
 
+type alias ChartInfo =
+    { x : Float
+    , y : Float
+    , width : Float
+    , height : Float
+    }
+
+
 {-| Model for the internal state for interactive charts
 -}
 type alias Model =
     { id : String
-    , chartSize : ( Float, Float )
+    , chartInfo : ChartInfo
     , mousePosition : Maybe MousePosition
     }
 
@@ -98,7 +106,7 @@ type Msg
 initialModel : String -> Model
 initialModel id =
     { id = id
-    , chartSize = ( 0, 0 )
+    , chartInfo = { x = 0, y = 0, width = 0, height = 0 }
     , mousePosition = Nothing
     }
 
@@ -123,7 +131,16 @@ update msg model =
         SvgElementMsg result ->
             case result of
                 Ok elem ->
-                    ( { model | chartSize = ( elem.element.width, elem.element.height ) }, Cmd.none )
+                    ( { model
+                        | chartInfo =
+                            { x = elem.element.x
+                            , y = elem.element.y
+                            , width = elem.element.width
+                            , height = elem.element.height
+                            }
+                      }
+                    , Cmd.none
+                    )
 
                 Err _ ->
                     ( model, Cmd.none )
@@ -191,15 +208,12 @@ lineChartInteractive data =
         , msgMapper = data.msgMapper
         }
         [ id data.model.id
-
-        -- , TypedSvg.Events.on "load" <| VirtualDom.Normal <| Decode.succeed ChartLoaded
-        -- , TypedSvg.Events.onLoad ChartLoaded
         , on "mousemove" <| VirtualDom.Normal <| Decode.map UpdateMousePosition mouseMoveDecoder
         , on "mouseleave" <| VirtualDom.Normal <| Decode.succeed OnMouseLeave
         ]
         [ drawCursor
             data.dimensions
-            data.model.chartSize
+            data.model.chartInfo
             data.cursor
             data.lines
             data.dataFrame
@@ -360,35 +374,42 @@ getLabelAndMinMax s f default toString graphX df =
 
 drawCursor :
     ( Float, Float )
-    -> ( Float, Float )
+    -> ChartInfo
     -> CursorConfig
     -> List (LineConfig a)
     -> DataFrame a
     -> Maybe MousePosition
     -> ( DataScale a, ContinuousScale Float )
     -> Svg msg
-drawCursor dimensions chartSize cursor lines df mousePosition scales =
+drawCursor dimensions chartInfo cursor lines df mousePosition scales =
     case mousePosition of
         Nothing ->
             g [] []
 
         Just pos ->
-            drawCursorMouseOnChart dimensions chartSize cursor lines df pos scales
+            drawCursorMouseOnChart
+                dimensions
+                chartInfo
+                cursor
+                lines
+                df
+                pos
+                scales
 
 
 drawCursorMouseOnChart :
     ( Float, Float )
-    -> ( Float, Float )
+    -> ChartInfo
     -> CursorConfig
     -> List (LineConfig a)
     -> DataFrame a
     -> MousePosition
     -> ( DataScale a, ContinuousScale Float )
     -> Svg msg
-drawCursorMouseOnChart ( w, h ) chartSize cursor lines df pos scales =
+drawCursorMouseOnChart ( w, h ) chartInfo cursor lines df pos scales =
     let
         ( chartX, chartY ) =
-            toChartPos ( w, h ) chartSize pos
+            toChartPos ( w, h ) chartInfo pos
 
         graphX =
             chartX - paddingX * 1.5
@@ -597,14 +618,14 @@ zeroPad width s =
         s
 
 
-toChartPos : ( Float, Float ) -> ( Float, Float ) -> MousePosition -> ( Float, Float )
-toChartPos ( w, h ) ( chartWidth, chartHeight ) pos =
+toChartPos : ( Float, Float ) -> ChartInfo -> MousePosition -> ( Float, Float )
+toChartPos ( w, h ) chartInfo pos =
     let
         chartX =
-            toFloat pos.x / chartWidth * w
+            (toFloat pos.x - chartInfo.x) / chartInfo.width * w
 
         chartY =
-            toFloat pos.y / chartHeight * h
+            (toFloat pos.y - chartInfo.y) / chartInfo.height * h
     in
     ( chartX, chartY )
 

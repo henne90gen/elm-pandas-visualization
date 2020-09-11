@@ -4,6 +4,7 @@ import Browser
 import Color
 import DataFrame exposing (DataFrame)
 import Html exposing (Html)
+import Html.Attributes
 import LineChart exposing (lineChart)
 import Shape
 import Time
@@ -103,7 +104,15 @@ view : Model -> Browser.Document Msg
 view model =
     { title = "LineChart Example"
     , body =
-        [ valueChartInteractive model
+        [ Html.div
+            [ Html.Attributes.style "display" "flex"
+            , Html.Attributes.style "flex-direction" "column"
+            , Html.Attributes.style "align-items" "center"
+            ]
+            [ Html.div
+                [ Html.Attributes.style "width" "60%" ]
+                [ valueChartInteractive model ]
+            ]
         , timeChart model
         , valueChart model
         ]
