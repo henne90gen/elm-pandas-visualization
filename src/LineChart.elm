@@ -647,8 +647,8 @@ insertOnLoadHack _ =
 mouseMoveDecoder : Decode.Decoder MousePosition
 mouseMoveDecoder =
     Decode.map2 MousePosition
-        (Decode.at [ "x" ] Decode.int)
-        (Decode.at [ "y" ] Decode.int)
+        (Decode.at [ "pageX" ] Decode.int)
+        (Decode.at [ "pageY" ] Decode.int)
 
 
 {-| Subscribes to various events to allow interactive charts to function properly
