@@ -276,8 +276,6 @@ series : DataScale a -> ContinuousScale Float -> LineType -> DataFrame a -> Int 
 series xScale yScale lineType df index lineConfig =
     g [ class [ "series" ] ]
         [ line index xScale yScale lineConfig lineType df
-
-        -- , g [] <| List.map (drawCircle xScale yScale) items
         ]
 
 
@@ -349,25 +347,33 @@ getColor index lineConfig =
             c
 
 
-getLabelAndMinMax : ContinuousScale b -> (a -> b) -> b -> (b -> String) -> Float -> DataFrame a -> ( String, ( Float, Float ) )
-getLabelAndMinMax s f default toString graphX df =
+getLabelAndMinMax :
+    (comparable -> Float)
+    -> (Float -> comparable)
+    -> (a -> comparable)
+    -> comparable
+    -> (comparable -> String)
+    -> Float
+    -> DataFrame a
+    -> ( String, ( Float, Float ) )
+getLabelAndMinMax convert invert dataFunc default toString graphX df =
     let
         linesXData =
-            List.map f df.data
+            List.map dataFunc df.data
 
         minValue =
             linesXData
-                |> List.head
+                |> List.minimum
                 |> Maybe.withDefault default
-                |> Scale.convert s
+                |> convert
 
         maxValue =
             linesXData
-                |> List.Extra.last
+                |> List.maximum
                 |> Maybe.withDefault default
-                |> Scale.convert s
+                |> convert
     in
-    ( toString <| Scale.invert s graphX
+    ( toString <| invert graphX
     , ( minValue, maxValue )
     )
 
@@ -440,10 +446,24 @@ drawCursorMouseOnGraph ( _, h ) cursor lines df ( chartX, chartY ) ( xScale, ySc
         ( label, ( min, max ) ) =
             case xScale of
                 ValueScale ( s, f ) ->
-                    getLabelAndMinMax s f 0 (Round.round 2) graphX df
+                    getLabelAndMinMax
+                        (Scale.convert s)
+                        (Scale.invert s)
+                        f
+                        0
+                        (Round.round 2)
+                        graphX
+                        df
 
                 TimeScale ( s, f ) ->
-                    getLabelAndMinMax s f (Time.millisToPosix 0) formatTime graphX df
+                    getLabelAndMinMax
+                        (\v -> v |> Time.millisToPosix |> Scale.convert s)
+                        (\v -> v |> Scale.invert s |> Time.posixToMillis)
+                        (\v -> v |> f |> Time.posixToMillis)
+                        0
+                        (\v -> formatTime (Time.millisToPosix v))
+                        graphX
+                        df
     in
     g [ transform [ Translate chartX paddingY ] ]
         [ TypedSvg.line
@@ -501,10 +521,7 @@ drawCursorDotsMouseOnData ( min, max ) cursor yScale lines df ( graphX, graphY )
                 (\interpolator ->
                     let
                         value =
-                            graphX
-                                |> (\n -> n - min)
-                                |> (\n -> n / (max - min))
-                                |> interpolator
+                            interpolator ((graphX - min) / (max - min))
                     in
                     ( value, Scale.convert yScale value )
                 )
